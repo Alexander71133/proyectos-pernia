@@ -10,7 +10,7 @@ from procesar_datos import obtener_datos_obras, obtener_datos_transacciones
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUTA_OUTPUT = BASE_DIR / "output" / "dashboard_obras.html"
-RUTA_INDEX = BASE_DIR / "index.html"
+RUTA_INDEX = BASE_DIR.parent / "index.html"
 RUTA_REPORTE = BASE_DIR / "reporte_obras.html"
 
 
@@ -658,8 +658,17 @@ def generar_dashboard():
         )
         f.write(html_output)
 
-    with open(RUTA_INDEX, "w", encoding="utf-8") as f:
-        f.write(html_content)
+    html_index = html_content.replace(
+        'src="src/assets/Logo.svg"',
+        f'src="{BASE_DIR.name}/src/assets/Logo.svg"',
+    ).replace(
+        'const rutaBaseArchivos = "";',
+        f'const rutaBaseArchivos = "{BASE_DIR.name}/";',
+    ).replace(
+        'href="reporte_obras.html"',
+        f'href="{BASE_DIR.name}/reporte_obras.html"',
+    )
+    RUTA_INDEX.write_text(html_index, encoding="utf-8")
 
     print(
         f"¡ÉXITO! Dashboards generados correctamente en: "
