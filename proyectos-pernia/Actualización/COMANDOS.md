@@ -4,10 +4,10 @@ El dashboard no se actualiza automáticamente cuando cambia el Excel. Ejecuta es
 
 ```powershell
 # Regenerar el dashboard y copiar los adjuntos desde Dropbox
-Set-Location "$HOME\Documents\Dashboard_Obras\proyectos-pernia"
+Set-Location "$HOME\Documents\Dashboard_Pernia\proyectos-pernia"
 python .\generar_dashboard.py
 
-# Publicar el proyecto en GitHub desde la carpeta raíz del repositorio
+# Publicar proyectos-pernia desde la raíz del repositorio Dashboard_Pernia
 Set-Location ..
 git status
 git add .\proyectos-pernia
@@ -16,6 +16,6 @@ git commit -m "Actualizar dashboard Proyectos Pernia"
 git push origin main
 ```
 
-Revisa la salida de `git status` y `git diff --cached --stat` antes de confirmar. Si `git commit` indica que no hay cambios, no hay nada nuevo que publicar.
+La carpeta `Dashboard_Pernia` es la raíz del repositorio Git y `proyectos-pernia` es la carpeta que se publica en [GitHub Pages](https://Alexander71133.github.io/proyectos-pernia/). Revisa la salida de `git status` y `git diff --cached --stat` antes de confirmar. Si `git commit` indica que no hay cambios, no hay nada nuevo que publicar.
 
 El dashboard y los archivos de `documentos/` serán públicos si GitHub Pages está habilitado para el repositorio. No publiques archivos privados.
