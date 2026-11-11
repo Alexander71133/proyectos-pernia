@@ -1,22 +1,22 @@
-# Actualizar Proyectos Pernia
-
-El dashboard no se actualiza automáticamente cuando cambia el Excel. Ejecuta estos comandos después de sincronizar en Dropbox el libro y los documentos del proyecto.
-
 ```powershell
-# Regenerar el dashboard y copiar los adjuntos desde Dropbox
 Set-Location "$HOME\Documents\Dashboard_Pernia\proyectos-pernia"
 python .\generar_dashboard.py
-python .\src\generar_html.py
+if ($LASTEXITCODE -ne 0) { throw "Falló la generación." }
 
-# Publicar el índice y proyectos-pernia desde la raíz del repositorio
 Set-Location ..
-git status
-git add .\index.html .\proyectos-pernia
+git diff --cached --quiet
+if ($LASTEXITCODE -ne 0) { throw "Hay cambios preparados. Revísalos antes de continuar." }
+git add .\index.html .\proyectos-pernia\proyectos.js .\proyectos-pernia\documentos
+if ($LASTEXITCODE -ne 0) { throw "Falló git add." }
+git diff --cached --check
+if ($LASTEXITCODE -ne 0) { throw "Hay errores en los cambios preparados." }
 git diff --cached --stat
+git diff --cached --name-status
+$confirmar = Read-Host "¿Confirmas publicar estos archivos? Escribe S para continuar"
+if ($confirmar -ne "S") { throw "Publicación cancelada." }
+
 git commit -m "Actualizar dashboard Proyectos Pernia"
+if ($LASTEXITCODE -ne 0) { throw "Falló el commit." }
 git push origin main
+if ($LASTEXITCODE -ne 0) { throw "Falló el envío a GitHub." }
 ```
-
-La carpeta `Dashboard_Pernia` es la raíz del repositorio Git y GitHub Pages busca `index.html` en esa raíz. `src\generar_html.py` crea allí el índice y deja sus recursos dentro de `proyectos-pernia`. Revisa la salida de `git status` y `git diff --cached --stat` antes de confirmar. Si `git commit` indica que no hay cambios, no hay nada nuevo que publicar.
-
-El dashboard y los archivos de `documentos/` serán públicos si GitHub Pages está habilitado para el repositorio. No publiques archivos privados.
