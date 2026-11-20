@@ -1,7 +1,9 @@
 """Genera los datos y adjuntos estáticos del tablero de Proyectos Pernia."""
 
 import json
+import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -20,6 +22,7 @@ SOURCE_DIR = (
 EXCEL_PATH = SOURCE_DIR / "Tablero Control Pernia.xlsx"
 ASSET_DIR = BASE_DIR / "documentos"
 OUTPUT_PATH = BASE_DIR / "proyectos.js"
+HTML_PATH = BASE_DIR / "index.html"
 
 FOLDER_BY_ARCHIVE = {
     "Suelos Café": "Estudios Suelo Café",
@@ -32,6 +35,19 @@ def porcentaje(valor):
         return 0.0
     numero = float(valor)
     return round(numero * 100 if 0 <= numero <= 1 else numero, 1)
+
+
+def actualizar_fecha_html(contenido, momento=None):
+    fecha = (momento or datetime.now()).strftime("%d/%m/%Y %H:%M")
+    actualizado, coincidencias = re.subn(
+        r"(Seguimiento de avance y presupuesto \(Actualización de datos: )[^)]*(\)\.)",
+        lambda match: f"{match.group(1)}{fecha}{match.group(2)}",
+        contenido,
+        count=1,
+    )
+    if coincidencias != 1:
+        raise ValueError("No se encontró la fecha de actualización en index.html")
+    return actualizado
 
 
 def generar():
@@ -103,6 +119,8 @@ def generar():
         + ";\n",
         encoding="utf-8",
     )
+    html_actualizado = actualizar_fecha_html(HTML_PATH.read_text(encoding="utf-8"))
+    HTML_PATH.write_text(html_actualizado, encoding="utf-8")
     print(f"Tablero generado: {len(proyectos)} proyectos, {sum(len(p['files']) for p in proyectos)} adjuntos")
 
 
