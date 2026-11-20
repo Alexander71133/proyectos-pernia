@@ -41,6 +41,9 @@
     .nav-item.active { color: var(--green); background: var(--green-soft); font-weight: 700; }
     .nav-glyph { width: 17px; text-align: center; font-size: 15px; }
     .nav-count { margin-left: auto; color: #8b968e; font-size: 11px; }
+    .valuation-total-card { margin: 13px 7px 0; padding: 11px; border: 1px solid #dfe8df; border-radius: 6px; background: #f7faf7; }
+    .valuation-total-label { margin: 0; color: #748078; font-size: 10px; font-weight: 600; }
+    .valuation-total-value { display: block; margin-top: 5px; color: var(--green); font: 800 17px "Manrope", sans-serif; white-space: nowrap; }
     .sidebar-footer { margin-top: auto; border-top: 1px solid var(--line); padding: 15px 10px 0; color: #879189; font-size: 10px; line-height: 1.6; }
     .main { min-height: 100vh; margin-left: 238px; }
     .topbar { height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 36px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.8); }
@@ -65,6 +68,7 @@
     .stat-note { margin-top: 7px; color: #8b958e; font-size: 10px; }
     .stat-mark { float: right; width: 27px; height: 27px; display: grid; place-items: center; border-radius: 6px; color: var(--green); background: var(--green-soft); font-size: 14px; }
     .board { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); box-shadow: var(--shadow); }
+    .valuation-board { margin-top: 21px; }
     .board-head { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
     .board-title { display: flex; align-items: center; gap: 9px; font: 700 13px "Manrope", sans-serif; }
     .board-title::before { width: 3px; height: 18px; content: ""; border-radius: 4px; background: var(--green); }
@@ -150,7 +154,7 @@
       .sidebar { position: static; width: auto; height: 54px; flex-direction: row; align-items: center; padding: 0 15px; border-right: 0; border-bottom: 1px solid var(--line); }
       .brand { padding: 0; }
       .brand-logo { width: 26px; height: 34px; }
-      .sidebar .nav-label, .sidebar .nav-item, .sidebar-footer { display: none; }
+      .sidebar .nav-label, .sidebar .nav-item, .sidebar-footer, .valuation-total-card { display: none; }
       .main { margin-left: 0; }
       .topbar { height: 44px; padding: 0 16px; }
       .top-right { gap: 8px; }
@@ -186,6 +190,11 @@
       <div class="nav-label">Espacio de trabajo</div>
       <a class="nav-item" href="#resumen"><span class="nav-glyph" aria-hidden="true">⌂</span>Resumen</a>
       <a class="nav-item active" href="#proyectos" aria-current="page"><span class="nav-glyph" aria-hidden="true">▦</span>Proyectos Pernia<span class="nav-count" id="nav-count">0</span></a>
+      <a class="nav-item" href="#valuaciones"><span class="nav-glyph" aria-hidden="true">▤</span>Valuaciones Pendientes</a>
+      <div class="valuation-total-card" role="status" aria-live="polite">
+        <p class="valuation-total-label">Saldo por Valuaciones</p>
+        <strong class="valuation-total-value" id="valuation-total-pending">—</strong>
+      </div>
       <div class="sidebar-footer">INFORME DE OBRAS<br>Dpto. de Sistemas</div>
     </aside>
 
@@ -197,7 +206,7 @@
 
       <main class="content" id="resumen">
         <section class="page-heading">
-          <div><p class="eyebrow">Inversora Macroandes · Informe de obras</p><h1>Proyectos Pernia</h1><p class="subtitle">Seguimiento de avance y presupuesto (Actualización de datos: 20/11/2026 11:59).</p></div>
+          <div><p class="eyebrow">Inversora Macroandes · Informe de obras</p><h1>Proyectos Pernia</h1><p class="subtitle">Seguimiento de avance y presupuesto (Actualización de datos: 20/11/2026 12:30).</p></div>
           <div class="heading-actions"><div class="updated" id="update-date"></div><button class="pdf-button" id="generate-pdf" type="button">Generar resumen de obras en curso PDF</button></div>
         </section>
 
@@ -231,6 +240,19 @@
           </div>
         </section>
 
+        <section class="board valuation-board" id="valuaciones" aria-label="Valuaciones">
+          <div class="board-head">
+            <div class="board-title">Valuaciones</div>
+          </div>
+          <div class="table-scroll">
+            <table aria-label="Datos de la hoja Valuaciones">
+              <thead id="valuation-headers"></thead>
+              <tbody id="valuation-rows"></tbody>
+            </table>
+            <div class="empty" id="valuation-empty">No hay información en la hoja Valuaciones.</div>
+          </div>
+        </section>
+
         <div class="privacy-note"><span aria-hidden="true">ⓘ</span><span><strong>PORTAL DEL CLIENTE:</strong> Bienvenidos a su centro de control en tiempo real, aquí podrán consultar el avance de sus obras.</span></div>
       </main>
     </div>
@@ -241,11 +263,18 @@
     <div id="drawer-content"></div>
   </aside>
   <script src="./proyectos.js"></script>
+  <script src="./valuaciones.js"></script>
   <script>
     const proyectos = window.MACROANDES_PROJECTS || [];
+    const valuaciones = window.MACROANDES_VALUACIONES || { columns: [], rows: [] };
+    const columnasMonetarias = new Set(['Presupuesto', 'Anticipo', 'Monto Ejecutado', 'Valuación por cobrar', 'Abono', 'Por pagar']);
     const moneda = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
     const porcentajeFmt = new Intl.NumberFormat('es-VE', { maximumFractionDigits: 1 });
+    const porcentajeValuacionFmt = new Intl.NumberFormat('es-VE', { style: 'percent', maximumFractionDigits: 0 });
+    const dolaresValuacionFmt = new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const rows = document.getElementById('project-rows');
+    const valuationHeaders = document.getElementById('valuation-headers');
+    const valuationRows = document.getElementById('valuation-rows');
     const search = document.getElementById('search');
     const drawer = document.getElementById('drawer');
     const overlay = document.getElementById('overlay');
@@ -284,6 +313,44 @@
         const coincideTexto = !consulta || `${item.name} ${item.folder} ${item.status}`.toLocaleLowerCase('es').includes(consulta);
         return coincideEstado && coincideTexto;
       });
+    }
+
+    function formatearValorValuacion(columna, valor) {
+      if (valor === null || valor === undefined || valor === '') return '';
+      if (typeof valor !== 'number') return esc(valor);
+      if (columna === 'Avance') return porcentajeValuacionFmt.format(valor);
+      if (columnasMonetarias.has(columna)) return dinero(valor);
+      return esc(valor);
+    }
+
+    function obtenerTotalPorPagar() {
+      const proyectoIndex = valuaciones.columns.indexOf('Proyecto');
+      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
+      if (proyectoIndex === -1 || porPagarIndex === -1) return null;
+
+      const filaTotal = valuaciones.rows.find((fila) => (
+        !fila[proyectoIndex] && typeof fila[porPagarIndex] === 'number'
+      ));
+      if (filaTotal) return filaTotal[porPagarIndex];
+
+      return valuaciones.rows.reduce((total, fila) => {
+        const monto = fila[porPagarIndex];
+        return fila[proyectoIndex] && typeof monto === 'number' && Number.isFinite(monto)
+          ? total + monto
+          : total;
+      }, 0);
+    }
+
+    function renderizarValuaciones() {
+      valuationHeaders.innerHTML = `<tr>${valuaciones.columns.map((columna) => `<th scope="col">${esc(columna)}</th>`).join('')}</tr>`;
+      valuationRows.innerHTML = valuaciones.rows.map((fila) => (
+        `<tr>${fila.map((valor, indice) => `<td>${formatearValorValuacion(valuaciones.columns[indice], valor)}</td>`).join('')}</tr>`
+      )).join('');
+      document.getElementById('valuation-empty').classList.toggle('visible', valuaciones.rows.length === 0);
+      const totalPorPagar = obtenerTotalPorPagar();
+      document.getElementById('valuation-total-pending').textContent = totalPorPagar === null
+        ? 'No disponible'
+        : `$ ${dolaresValuacionFmt.format(totalPorPagar)}`;
     }
 
     function generarPDF() {
@@ -516,6 +583,7 @@
 
     actualizarResumen();
     renderizarTabla();
+    renderizarValuaciones();
   </script>
 </body>
 </html>

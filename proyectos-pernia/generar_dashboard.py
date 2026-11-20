@@ -22,6 +22,7 @@ SOURCE_DIR = (
 EXCEL_PATH = SOURCE_DIR / "Tablero Control Pernia.xlsx"
 ASSET_DIR = BASE_DIR / "documentos"
 OUTPUT_PATH = BASE_DIR / "proyectos.js"
+VALUACIONES_PATH = BASE_DIR / "valuaciones.js"
 HTML_PATH = BASE_DIR / "index.html"
 
 FOLDER_BY_ARCHIVE = {
@@ -50,11 +51,56 @@ def actualizar_fecha_html(contenido, momento=None):
     return actualizado
 
 
+def valor_excel_a_json(valor):
+    if pd.isna(valor):
+        return None
+    if isinstance(valor, datetime):
+        return valor.isoformat()
+    if hasattr(valor, "item"):
+        return valor.item()
+    return valor
+
+
+def serializar_valuaciones(tabla):
+    return {
+        "columns": [str(columna) for columna in tabla.columns],
+        "rows": [
+            [valor_excel_a_json(valor) for valor in fila]
+            for fila in tabla.itertuples(index=False, name=None)
+        ],
+    }
+
+
+def escribir_valuaciones(tabla):
+    VALUACIONES_PATH.write_text(
+        "window.MACROANDES_VALUACIONES = "
+        + json.dumps(
+            serializar_valuaciones(tabla),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        + ";\n",
+        encoding="utf-8",
+    )
+
+
 def generar():
     if not EXCEL_PATH.is_file():
         raise FileNotFoundError(f"No se encontró el tablero fuente: {EXCEL_PATH}")
 
     tabla = pd.read_excel(EXCEL_PATH, sheet_name="Tabla de Control")
+    tabla_valuaciones = pd.read_excel(
+        EXCEL_PATH, sheet_name="Valuaciones", dtype=object
+    )
+    faltantes_valuaciones = {"Proyecto", "Por pagar"}.difference(
+        tabla_valuaciones.columns
+    )
+    if faltantes_valuaciones:
+        raise ValueError(
+            "Faltan columnas en 'Valuaciones': "
+            + ", ".join(sorted(faltantes_valuaciones))
+        )
     requeridas = {
         "Proyecto",
         "Archivos",
@@ -119,6 +165,7 @@ def generar():
         + ";\n",
         encoding="utf-8",
     )
+    escribir_valuaciones(tabla_valuaciones)
     html_actualizado = actualizar_fecha_html(HTML_PATH.read_text(encoding="utf-8"))
     HTML_PATH.write_text(html_actualizado, encoding="utf-8")
     print(f"Tablero generado: {len(proyectos)} proyectos, {sum(len(p['files']) for p in proyectos)} adjuntos")
