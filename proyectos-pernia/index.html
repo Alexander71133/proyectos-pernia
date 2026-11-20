@@ -148,6 +148,7 @@
       .topbar { padding: 0 22px; }
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .board-head { align-items: flex-start; flex-direction: column; }
+      .valuation-board-head { align-items: center; flex-direction: row; }
       .board-tools { width: 100%; justify-content: space-between; }
     }
     @media (max-width: 680px) {
@@ -241,8 +242,9 @@
         </section>
 
         <section class="board valuation-board" id="valuaciones" aria-label="Valuaciones">
-          <div class="board-head">
+          <div class="board-head valuation-board-head">
             <div class="board-title">Valuaciones</div>
+            <button class="pdf-button" type="button" id="generate-valuations-pdf" aria-label="Generar informe PDF de Valuaciones">Generar PDF</button>
           </div>
           <div class="table-scroll">
             <table aria-label="Datos de la hoja Valuaciones">
@@ -524,6 +526,140 @@
       popup.document.close();
     }
 
+    function generarPDFValuaciones() {
+      const popup = window.open('', '_blank');
+      if (!popup) {
+        window.alert('No se pudo abrir el informe. Permite las ventanas emergentes para generar el PDF.');
+        return;
+      }
+
+      const columnasRequeridas = ['Proyecto', 'Presupuesto', 'Anticipo', 'Avance', 'Monto Ejecutado', 'Abono', 'Por pagar'];
+      const columnasFaltantes = columnasRequeridas.filter((columna) => !valuaciones.columns.includes(columna));
+      if (columnasFaltantes.length) {
+        window.alert(`No se puede generar el informe. Faltan columnas en Valuaciones: ${columnasFaltantes.join(', ')}`);
+        return;
+      }
+
+      const proyectoIndex = valuaciones.columns.indexOf('Proyecto');
+      const filasDetalle = valuaciones.rows.filter((fila) => fila[proyectoIndex]);
+      const indiceColumna = (nombre) => valuaciones.columns.indexOf(nombre);
+      const numeroCelda = (fila, indice) => (
+        typeof fila[indice] === 'number' && Number.isFinite(fila[indice]) ? fila[indice] : 0
+      );
+      const sumarColumna = (nombre) => {
+        const indice = indiceColumna(nombre);
+        return filasDetalle.reduce((total, fila) => total + numeroCelda(fila, indice), 0);
+      };
+      const totalPresupuesto = sumarColumna('Presupuesto');
+      const totalEjecutado = sumarColumna('Monto Ejecutado');
+      const totalAnticipos = sumarColumna('Anticipo');
+      const totalAbonos = sumarColumna('Abono');
+      const totalPorPagar = sumarColumna('Por pagar');
+      const avancePonderado = totalPresupuesto > 0
+        ? filasDetalle.reduce(
+          (total, fila) => total + numeroCelda(fila, indiceColumna('Presupuesto')) * numeroCelda(fila, indiceColumna('Avance')),
+          0,
+        ) / totalPresupuesto * 100
+        : 0;
+      const totalAportado = totalAnticipos + totalAbonos;
+      const montoRestante = totalPresupuesto - totalEjecutado;
+      const formatoEntero = new Intl.NumberFormat('es-VE', { maximumFractionDigits: 0 });
+      const formatoPorcentaje = new Intl.NumberFormat('es-VE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const formatoUSD = (monto) => `USD ${formatoEntero.format(monto)}`;
+
+      const fecha = new Intl.DateTimeFormat('es-VE', { dateStyle: 'long' }).format(new Date());
+      const logoUrl = new URL('./Logo%20Macroandes.png', window.location.href).href;
+      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
+      const filaTotal = obtenerFilaTotalPorPagar();
+      const encabezados = valuaciones.columns.map((columna) => `<th scope="col">${esc(columna)}</th>`).join('');
+      const panorama = filasDetalle.length
+        ? `<p>En conjunto, las <strong>${formatoEntero.format(filasDetalle.length)} partidas</strong> contemplan un presupuesto total de <strong>${formatoUSD(totalPresupuesto)}</strong>, sobre el cual ya se ha realizado un avance físico ponderado del <strong>${formatoPorcentaje.format(avancePonderado)}%</strong>, equivalente a <strong>${formatoUSD(totalEjecutado)}</strong> en trabajos ejecutados. A la fecha, se han recibido <strong>${formatoUSD(totalAnticipos)}</strong> en anticipos y <strong>${formatoUSD(totalAbonos)}</strong> en abonos sobre la valuación en curso (totalizando <strong>${formatoUSD(totalAportado)}</strong> aportados), quedando <strong>${formatoUSD(totalPorPagar)}</strong> pendientes de liquidar sobre lo ya trabajado y <strong>${formatoUSD(montoRestante)}</strong> correspondientes a las actividades que aún restan por ejecutar para completar el alcance total.</p>`
+        : '<p>No hay partidas de valuación registradas para elaborar el panorama general.</p>';
+      const filas = valuaciones.rows.map((fila) => (
+        `<tr>${fila.map((valor, indice) => {
+          const contenido = formatearValorValuacion(valuaciones.columns[indice], valor);
+          const esTotalPorPagar = fila === filaTotal && indice === porPagarIndex;
+          const clase = typeof valor === 'number' ? ' class="numeric"' : '';
+          return `<td${clase}>${esTotalPorPagar ? `<strong>${contenido}</strong>` : contenido}</td>`;
+        }).join('')}</tr>`
+      )).join('');
+      const contenidoTabla = filas || `<tr><td class="empty-row" colspan="${Math.max(valuaciones.columns.length, 1)}">No hay registros de valuaciones.</td></tr>`;
+
+      popup.document.open();
+      popup.document.write(`<!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Informe de Valuaciones | Inversora Macroandes</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { max-width: 1180px; margin: 0 auto; padding: 28px 32px; color: #27332d; background: #fff; font: 14px/1.5 Arial, sans-serif; }
+            .report-actions { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+            .print-button { padding: 9px 14px; border: 1px solid #176b4d; border-radius: 5px; color: #fff; background: #176b4d; cursor: pointer; font: inherit; font-weight: 700; }
+            .header { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; padding: 0 0 16px; border-bottom: 3px solid #176b4d; }
+            .logo { width: 76px; height: 84px; flex: 0 0 76px; object-fit: contain; }
+            .company { margin: 0 0 9px; color: #176b4d; font-size: 16px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+            h1 { margin: 0; color: #202923; font-size: 32px; line-height: 1.2; }
+            .subtitle { margin: 7px 0 0; color: #59665d; font-size: 15px; }
+            .scope { margin: 0 0 22px; padding: 12px 14px; border-left: 3px solid #176b4d; color: #405047; background: #f1f6f2; }
+            .scope strong { color: #176b4d; }
+            .client-letter { margin: 0 0 22px; color: #405047; }
+            .client-letter p { margin: 0 0 10px; }
+            .client-letter .greeting { color: #2b3830; font-weight: 700; }
+            .client-letter strong { color: #27332d; }
+            .section-title { margin: 0 0 11px; color: #2b3830; font-size: 20px; }
+            .table-wrap { overflow-x: auto; }
+            table { width: 100%; border-collapse: collapse; table-layout: auto; }
+            th { padding: 10px 8px; border: 1px solid #dfe6df; color: #fff; background: #176b4d; font-size: 11px; text-align: left; }
+            td { padding: 9px 8px; border: 1px solid #dfe6df; color: #405047; font-size: 11px; overflow-wrap: anywhere; }
+            tbody tr:nth-child(even) { background: #f6f9f6; }
+            td.numeric { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+            td.numeric strong { color: #176b4d; }
+            .empty-row { padding: 18px; color: #68756c; text-align: center; }
+            .footer { margin-top: 20px; padding-top: 9px; border-top: 1px solid #dfe6df; color: #68756c; font-size: 10px; }
+            @page { size: landscape; margin: 14mm; }
+            @media print {
+              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body { max-width: none; padding: 0; }
+              .report-actions { display: none; }
+              .table-wrap { overflow: visible; }
+              table { font-size: 9pt; }
+              th, td { padding: 2.2mm 2mm; font-size: 9pt; }
+              thead { display: table-header-group; }
+              tr { break-inside: avoid; page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report-actions"><button class="print-button" type="button" onclick="window.print()">Imprimir / Guardar como PDF</button></div>
+          <header class="header">
+            <img class="logo" src="${logoUrl}" alt="Logo de Inversora Macroandes">
+            <div><p class="company">Inversora Macroandes</p>
+              <h1>Informe de Valuaciones</h1>
+              <p class="subtitle">Proyectos Pernia · Fecha de emisión: ${fecha}</p>
+            </div>
+          </header>
+          <p class="scope"><strong>Descripción:</strong> Este informe reúne la información registrada en la hoja “Valuaciones” del libro de control: proyecto, presupuesto, anticipo, avance, monto ejecutado, valuación por cobrar, abono y por pagar.</p>
+          <section class="client-letter">
+            <p class="greeting">Estimado cliente,</p>
+            <p>Agradecemos sinceramente la confianza depositada en <strong>Inversora Macroandes</strong> para el desarrollo de los <strong>Proyectos Pernia</strong>. A continuación, compartimos un resumen claro y cordial del avance y del estado financiero de cada obra con fecha de corte al <strong>${fecha}</strong>, para acompañar su informe de valuaciones:</p>
+            <h2 class="section-title">Panorama general de las obras</h2>
+            ${panorama}
+          </section>
+          <h2 class="section-title">Detalle de valuaciones</h2>
+          <div class="table-wrap">
+            <table aria-label="Detalle de valuaciones por proyecto">
+              <thead><tr>${encabezados}</tr></thead>
+              <tbody>${contenidoTabla}</tbody>
+            </table>
+          </div>
+          <footer class="footer">Fuente: hoja “Valuaciones” del libro de control de Proyectos Pernia. Informe emitido el ${fecha}.</footer>
+        <\/body>
+        </html>`);
+      popup.document.close();
+    }
+
     function renderizarTabla() {
       const filtrados = proyectosFiltrados();
       const totalesFiltrados = filtrados.reduce((sum, item) => ({
@@ -592,6 +728,7 @@
     }));
     search.addEventListener('input', renderizarTabla);
     document.getElementById('generate-pdf').addEventListener('click', generarPDF);
+    document.getElementById('generate-valuations-pdf').addEventListener('click', generarPDFValuaciones);
     overlay.addEventListener('click', cerrarDrawer);
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') cerrarDrawer(); });
 

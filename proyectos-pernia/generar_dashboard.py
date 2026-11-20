@@ -93,9 +93,16 @@ def generar():
     tabla_valuaciones = pd.read_excel(
         EXCEL_PATH, sheet_name="Valuaciones", dtype=object
     )
-    faltantes_valuaciones = {"Proyecto", "Por pagar"}.difference(
-        tabla_valuaciones.columns
-    )
+    requeridas_valuaciones = {
+        "Proyecto",
+        "Presupuesto",
+        "Anticipo",
+        "Avance",
+        "Monto Ejecutado",
+        "Abono",
+        "Por pagar",
+    }
+    faltantes_valuaciones = requeridas_valuaciones.difference(tabla_valuaciones.columns)
     if faltantes_valuaciones:
         raise ValueError(
             "Faltan columnas en 'Valuaciones': "
