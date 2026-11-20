@@ -212,7 +212,7 @@
 
         <section class="stats" aria-label="Resumen del portafolio">
           <article class="stat"><span class="stat-mark" aria-hidden="true">▤</span><div class="stat-label">Presupuesto total</div><div class="stat-value" id="total-budget">—</div><div class="stat-note">Presupuesto aprobado</div></article>
-          <article class="stat"><span class="stat-mark" aria-hidden="true">◷</span><div class="stat-label">Monto por pagar</div><div class="stat-value" id="total-due">—</div><div class="stat-note">Saldo pendiente del portafolio</div></article>
+          <article class="stat"><span class="stat-mark" aria-hidden="true">◷</span><div class="stat-label">Monto total por pagar</div><div class="stat-value" id="total-due">—</div><div class="stat-note">Saldo pendiente del portafolio</div></article>
           <article class="stat"><span class="stat-mark" aria-hidden="true">↗</span><div class="stat-label">En curso</div><div class="stat-value" id="active-count">—</div><div class="stat-note">Proyectos con trabajos activos</div></article>
           <article class="stat"><span class="stat-mark" aria-hidden="true">✓</span><div class="stat-label">Listos</div><div class="stat-value" id="ready-count">—</div><div class="stat-note">Proyectos finalizados</div></article>
           <article class="stat"><span class="stat-mark" aria-hidden="true">⌕</span><div class="stat-label">En estudio</div><div class="stat-value" id="study-count">—</div><div class="stat-note">Proyectos en etapa de estudio</div></article>
@@ -323,14 +323,22 @@
       return esc(valor);
     }
 
+    function obtenerFilaTotalPorPagar() {
+      const proyectoIndex = valuaciones.columns.indexOf('Proyecto');
+      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
+      if (proyectoIndex === -1 || porPagarIndex === -1) return null;
+
+      return valuaciones.rows.find((fila) => (
+        !fila[proyectoIndex] && typeof fila[porPagarIndex] === 'number'
+      )) || null;
+    }
+
     function obtenerTotalPorPagar() {
       const proyectoIndex = valuaciones.columns.indexOf('Proyecto');
       const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
       if (proyectoIndex === -1 || porPagarIndex === -1) return null;
 
-      const filaTotal = valuaciones.rows.find((fila) => (
-        !fila[proyectoIndex] && typeof fila[porPagarIndex] === 'number'
-      ));
+      const filaTotal = obtenerFilaTotalPorPagar();
       if (filaTotal) return filaTotal[porPagarIndex];
 
       return valuaciones.rows.reduce((total, fila) => {
@@ -342,9 +350,15 @@
     }
 
     function renderizarValuaciones() {
+      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
+      const filaTotal = obtenerFilaTotalPorPagar();
       valuationHeaders.innerHTML = `<tr>${valuaciones.columns.map((columna) => `<th scope="col">${esc(columna)}</th>`).join('')}</tr>`;
       valuationRows.innerHTML = valuaciones.rows.map((fila) => (
-        `<tr>${fila.map((valor, indice) => `<td>${formatearValorValuacion(valuaciones.columns[indice], valor)}</td>`).join('')}</tr>`
+        `<tr>${fila.map((valor, indice) => {
+          const contenido = formatearValorValuacion(valuaciones.columns[indice], valor);
+          const esTotalPorPagar = fila === filaTotal && indice === porPagarIndex;
+          return `<td>${esTotalPorPagar ? `<strong>${contenido}</strong>` : contenido}</td>`;
+        }).join('')}</tr>`
       )).join('');
       document.getElementById('valuation-empty').classList.toggle('visible', valuaciones.rows.length === 0);
       const totalPorPagar = obtenerTotalPorPagar();
