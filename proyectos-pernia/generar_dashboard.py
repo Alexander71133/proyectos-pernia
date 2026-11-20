@@ -99,8 +99,9 @@ def generar():
         "Anticipo",
         "Avance",
         "Monto Ejecutado",
+        "Monto Valuación",
         "Abono",
-        "Por pagar",
+        "Saldo",
     }
     faltantes_valuaciones = requeridas_valuaciones.difference(tabla_valuaciones.columns)
     if faltantes_valuaciones:

@@ -207,7 +207,7 @@
 
       <main class="content" id="resumen">
         <section class="page-heading">
-          <div><p class="eyebrow">Inversora Macroandes · Informe de obras</p><h1>Proyectos Pernia</h1><p class="subtitle">Seguimiento de avance y presupuesto (Actualización de datos: 20/11/2026 12:30).</p></div>
+          <div><p class="eyebrow">Inversora Macroandes · Informe de obras</p><h1>Proyectos Pernia</h1><p class="subtitle">Seguimiento de avance y presupuesto (Actualización de datos: 20/11/2026 13:48).</p></div>
           <div class="heading-actions"><div class="updated" id="update-date"></div><button class="pdf-button" id="generate-pdf" type="button">Generar resumen de obras en curso PDF</button></div>
         </section>
 
@@ -269,7 +269,7 @@
   <script>
     const proyectos = window.MACROANDES_PROJECTS || [];
     const valuaciones = window.MACROANDES_VALUACIONES || { columns: [], rows: [] };
-    const columnasMonetarias = new Set(['Presupuesto', 'Anticipo', 'Monto Ejecutado', 'Valuación por cobrar', 'Abono', 'Por pagar']);
+    const columnasMonetarias = new Set(['Presupuesto', 'Anticipo', 'Monto Ejecutado', 'Monto Valuación', 'Abono', 'Saldo']);
     const moneda = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
     const porcentajeFmt = new Intl.NumberFormat('es-VE', { maximumFractionDigits: 1 });
     const porcentajeValuacionFmt = new Intl.NumberFormat('es-VE', { style: 'percent', maximumFractionDigits: 0 });
@@ -325,26 +325,26 @@
       return esc(valor);
     }
 
-    function obtenerFilaTotalPorPagar() {
+    function obtenerFilaTotalSaldoValuaciones() {
       const proyectoIndex = valuaciones.columns.indexOf('Proyecto');
-      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
-      if (proyectoIndex === -1 || porPagarIndex === -1) return null;
+      const saldoIndex = valuaciones.columns.indexOf('Saldo');
+      if (proyectoIndex === -1 || saldoIndex === -1) return null;
 
       return valuaciones.rows.find((fila) => (
-        !fila[proyectoIndex] && typeof fila[porPagarIndex] === 'number'
+        !fila[proyectoIndex] && typeof fila[saldoIndex] === 'number'
       )) || null;
     }
 
-    function obtenerTotalPorPagar() {
+    function obtenerTotalSaldoValuaciones() {
       const proyectoIndex = valuaciones.columns.indexOf('Proyecto');
-      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
-      if (proyectoIndex === -1 || porPagarIndex === -1) return null;
+      const saldoIndex = valuaciones.columns.indexOf('Saldo');
+      if (proyectoIndex === -1 || saldoIndex === -1) return null;
 
-      const filaTotal = obtenerFilaTotalPorPagar();
-      if (filaTotal) return filaTotal[porPagarIndex];
+      const filaTotal = obtenerFilaTotalSaldoValuaciones();
+      if (filaTotal) return filaTotal[saldoIndex];
 
       return valuaciones.rows.reduce((total, fila) => {
-        const monto = fila[porPagarIndex];
+        const monto = fila[saldoIndex];
         return fila[proyectoIndex] && typeof monto === 'number' && Number.isFinite(monto)
           ? total + monto
           : total;
@@ -352,21 +352,21 @@
     }
 
     function renderizarValuaciones() {
-      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
-      const filaTotal = obtenerFilaTotalPorPagar();
+      const saldoIndex = valuaciones.columns.indexOf('Saldo');
+      const filaTotal = obtenerFilaTotalSaldoValuaciones();
       valuationHeaders.innerHTML = `<tr>${valuaciones.columns.map((columna) => `<th scope="col">${esc(columna)}</th>`).join('')}</tr>`;
       valuationRows.innerHTML = valuaciones.rows.map((fila) => (
         `<tr>${fila.map((valor, indice) => {
           const contenido = formatearValorValuacion(valuaciones.columns[indice], valor);
-          const esTotalPorPagar = fila === filaTotal && indice === porPagarIndex;
-          return `<td>${esTotalPorPagar ? `<strong>${contenido}</strong>` : contenido}</td>`;
+          const esTotalSaldo = fila === filaTotal && indice === saldoIndex;
+          return `<td>${esTotalSaldo ? `<strong>${contenido}</strong>` : contenido}</td>`;
         }).join('')}</tr>`
       )).join('');
       document.getElementById('valuation-empty').classList.toggle('visible', valuaciones.rows.length === 0);
-      const totalPorPagar = obtenerTotalPorPagar();
-      document.getElementById('valuation-total-pending').textContent = totalPorPagar === null
+      const totalSaldo = obtenerTotalSaldoValuaciones();
+      document.getElementById('valuation-total-pending').textContent = totalSaldo === null
         ? 'No disponible'
-        : `$ ${dolaresValuacionFmt.format(totalPorPagar)}`;
+        : `$ ${dolaresValuacionFmt.format(totalSaldo)}`;
     }
 
     function generarPDF() {
@@ -533,7 +533,7 @@
         return;
       }
 
-      const columnasRequeridas = ['Proyecto', 'Presupuesto', 'Anticipo', 'Avance', 'Monto Ejecutado', 'Abono', 'Por pagar'];
+      const columnasRequeridas = ['Proyecto', 'Presupuesto', 'Anticipo', 'Avance', 'Monto Ejecutado', 'Monto Valuación', 'Abono', 'Saldo'];
       const columnasFaltantes = columnasRequeridas.filter((columna) => !valuaciones.columns.includes(columna));
       if (columnasFaltantes.length) {
         window.alert(`No se puede generar el informe. Faltan columnas en Valuaciones: ${columnasFaltantes.join(', ')}`);
@@ -554,7 +554,7 @@
       const totalEjecutado = sumarColumna('Monto Ejecutado');
       const totalAnticipos = sumarColumna('Anticipo');
       const totalAbonos = sumarColumna('Abono');
-      const totalPorPagar = sumarColumna('Por pagar');
+      const totalSaldo = sumarColumna('Saldo');
       const avancePonderado = totalPresupuesto > 0
         ? filasDetalle.reduce(
           (total, fila) => total + numeroCelda(fila, indiceColumna('Presupuesto')) * numeroCelda(fila, indiceColumna('Avance')),
@@ -569,18 +569,18 @@
 
       const fecha = new Intl.DateTimeFormat('es-VE', { dateStyle: 'long' }).format(new Date());
       const logoUrl = new URL('./Logo%20Macroandes.png', window.location.href).href;
-      const porPagarIndex = valuaciones.columns.indexOf('Por pagar');
-      const filaTotal = obtenerFilaTotalPorPagar();
+      const saldoIndex = valuaciones.columns.indexOf('Saldo');
+      const filaTotal = obtenerFilaTotalSaldoValuaciones();
       const encabezados = valuaciones.columns.map((columna) => `<th scope="col">${esc(columna)}</th>`).join('');
       const panorama = filasDetalle.length
-        ? `<p>En conjunto, las <strong>${formatoEntero.format(filasDetalle.length)} partidas</strong> contemplan un presupuesto total de <strong>${formatoUSD(totalPresupuesto)}</strong>, sobre el cual ya se ha realizado un avance físico ponderado del <strong>${formatoPorcentaje.format(avancePonderado)}%</strong>, equivalente a <strong>${formatoUSD(totalEjecutado)}</strong> en trabajos ejecutados. A la fecha, se han recibido <strong>${formatoUSD(totalAnticipos)}</strong> en anticipos y <strong>${formatoUSD(totalAbonos)}</strong> en abonos sobre la valuación en curso (totalizando <strong>${formatoUSD(totalAportado)}</strong> aportados), quedando <strong>${formatoUSD(totalPorPagar)}</strong> pendientes de liquidar sobre lo ya trabajado y <strong>${formatoUSD(montoRestante)}</strong> correspondientes a las actividades que aún restan por ejecutar para completar el alcance total.</p>`
+        ? `<p>En conjunto, las <strong>${formatoEntero.format(filasDetalle.length)} partidas</strong> contemplan un presupuesto total de <strong>${formatoUSD(totalPresupuesto)}</strong>, sobre el cual ya se ha realizado un avance físico ponderado del <strong>${formatoPorcentaje.format(avancePonderado)}%</strong>, equivalente a <strong>${formatoUSD(totalEjecutado)}</strong> en trabajos ejecutados. A la fecha, se han recibido <strong>${formatoUSD(totalAnticipos)}</strong> en anticipos y <strong>${formatoUSD(totalAbonos)}</strong> en abonos sobre la valuación en curso (totalizando <strong>${formatoUSD(totalAportado)}</strong> aportados), quedando <strong>${formatoUSD(totalSaldo)}</strong> pendientes de liquidar sobre lo ya trabajado y <strong>${formatoUSD(montoRestante)}</strong> correspondientes a las actividades que aún restan por ejecutar para completar el alcance total.</p>`
         : '<p>No hay partidas de valuación registradas para elaborar el panorama general.</p>';
       const filas = valuaciones.rows.map((fila) => (
         `<tr>${fila.map((valor, indice) => {
           const contenido = formatearValorValuacion(valuaciones.columns[indice], valor);
-          const esTotalPorPagar = fila === filaTotal && indice === porPagarIndex;
+          const esTotalSaldo = fila === filaTotal && indice === saldoIndex;
           const clase = typeof valor === 'number' ? ' class="numeric"' : '';
-          return `<td${clase}>${esTotalPorPagar ? `<strong>${contenido}</strong>` : contenido}</td>`;
+          return `<td${clase}>${esTotalSaldo ? `<strong>${contenido}</strong>` : contenido}</td>`;
         }).join('')}</tr>`
       )).join('');
       const contenidoTabla = filas || `<tr><td class="empty-row" colspan="${Math.max(valuaciones.columns.length, 1)}">No hay registros de valuaciones.</td></tr>`;
@@ -640,7 +640,7 @@
               <p class="subtitle">Proyectos Pernia · Fecha de emisión: ${fecha}</p>
             </div>
           </header>
-          <p class="scope"><strong>Descripción:</strong> Este informe reúne la información registrada en la hoja “Valuaciones” del libro de control: proyecto, presupuesto, anticipo, avance, monto ejecutado, valuación por cobrar, abono y por pagar.</p>
+          <p class="scope"><strong>Descripción:</strong> Este informe reúne la información registrada en la hoja “Valuaciones” del libro de control: proyecto, presupuesto, anticipo, avance, monto ejecutado, monto de valuación, abono y saldo.</p>
           <section class="client-letter">
             <p class="greeting">Estimado cliente,</p>
             <p>Agradecemos sinceramente la confianza depositada en <strong>Inversora Macroandes</strong> para el desarrollo de los <strong>Proyectos Pernia</strong>. A continuación, compartimos un resumen claro y cordial del avance y del estado financiero de cada obra con fecha de corte al <strong>${fecha}</strong>, para acompañar su informe de valuaciones:</p>
