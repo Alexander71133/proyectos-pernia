@@ -100,7 +100,6 @@ def generar():
         "Avance",
         "Monto Ejecutado",
         "Monto Valuación",
-        "Abono",
         "Saldo",
     }
     faltantes_valuaciones = requeridas_valuaciones.difference(tabla_valuaciones.columns)
@@ -108,6 +107,17 @@ def generar():
         raise ValueError(
             "Faltan columnas en 'Valuaciones': "
             + ", ".join(sorted(faltantes_valuaciones))
+        )
+    if "Abono" not in tabla_valuaciones.columns:
+        abonos = (
+            pd.to_numeric(tabla_valuaciones["Monto Valuación"], errors="coerce")
+            - pd.to_numeric(tabla_valuaciones["Saldo"], errors="coerce")
+        )
+        abonos = abonos.where(tabla_valuaciones["Proyecto"].notna())
+        tabla_valuaciones.insert(
+            tabla_valuaciones.columns.get_loc("Monto Valuación") + 1,
+            "Abono",
+            abonos,
         )
     requeridas = {
         "Proyecto",
